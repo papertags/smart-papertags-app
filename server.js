@@ -675,6 +675,7 @@ app.get('/api/tags/:tagId/scans', authenticateToken, async (req, res) => {
 app.get('/api/tag-info/:hashedTagId', async (req, res) => {
   try {
     const { hashedTagId } = req.params;
+    console.log('Fetching tag info for hashed ID:', hashedTagId);
 
     // Get tag information using hashed ID with user social media data
     const tag = await new Promise((resolve, reject) => {
@@ -684,12 +685,18 @@ app.get('/api/tag-info/:hashedTagId', async (req, res) => {
         LEFT JOIN users u ON t.owner_id = u.id 
         WHERE t.hashed_tag_id = ? AND t.is_assigned = TRUE
       `, [hashedTagId], (err, row) => {
-        if (err) reject(err);
-        else resolve(row);
+        if (err) {
+          console.error('Database query error:', err);
+          reject(err);
+        } else {
+          console.log('Tag found:', row);
+          resolve(row);
+        }
       });
     });
 
     if (!tag) {
+      console.log('Tag not found for hashed ID:', hashedTagId);
       return res.status(404).json({ error: 'Tag not found or not assigned' });
     }
 
@@ -711,7 +718,7 @@ app.get('/api/tag-info/:hashedTagId', async (req, res) => {
     });
   } catch (error) {
     console.error('Get tag info error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
