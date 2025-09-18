@@ -387,33 +387,36 @@
             
             async initMap() {
                 try {
-                    // Use server-side IP-based approximate location
-                    const resp = await fetch('/api/ip-location');
-                    const approx = await resp.json();
+                    // Keep IP-based code for future use (not used for centering right now)
+                    let approx = null;
+                    try {
+                        const resp = await fetch('/api/ip-location');
+                        approx = await resp.json();
+                    } catch (_) {}
 
-                    let center = [20, 0]; // world default
-                    if (approx && typeof approx.lat === 'number' && typeof approx.lon === 'number') {
-                        center = [approx.lat, approx.lon];
-                    }
+                    // Force-start at UVA Rotunda
+                    const UVA_ROTUNDA = { lat: 38.0356, lon: -78.5032 };
+                    const center = [UVA_ROTUNDA.lat, UVA_ROTUNDA.lon];
 
-                    this.map = L.map('map').setView(center, 11);
+                    this.map = L.map('map').setView(center, 14);
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         attribution: '© OpenStreetMap contributors'
                     }).addTo(this.map);
 
-                    const locText = [approx?.city, approx?.region, approx?.country].filter(Boolean).join(', ') || 'Unknown area';
-                    document.getElementById('locationText').textContent = `Approximate area: ${locText}. Tap to drop a pin.`;
+                    // Display UVA default text but allow pin placement
+                    const locText = 'UVA Rotunda, Charlottesville, VA. Tap to drop a pin.';
+                    document.getElementById('locationText').textContent = `Approximate area: ${locText}`;
 
                     this.map.on('click', (e) => {
                         this.placePin(e.latlng);
                     });
                 } catch (error) {
-                    console.error('IP location error:', error);
-                    this.map = L.map('map').setView([0, 0], 2);
+                    console.error('Map init error:', error);
+                    this.map = L.map('map').setView([38.0356, -78.5032], 14);
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         attribution: '© OpenStreetMap contributors'
                     }).addTo(this.map);
-                    document.getElementById('locationText').textContent = 'Tap the map to drop a pin where you found the item.';
+                    document.getElementById('locationText').textContent = 'UVA Rotunda, Charlottesville, VA. Tap to drop a pin.';
                     this.map.on('click', (e) => {
                         this.placePin(e.latlng);
                     });
