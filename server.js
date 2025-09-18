@@ -129,7 +129,9 @@ db.serialize(() => {
 // 2. Generate an App Password: https://myaccount.google.com/apppasswords
 // 3. Replace '2squidys' below with your App Password
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: {
     user: 'papertags.notify@gmail.com',
     pass: 'vxprjgwqnmhpgyjg' // Gmail App Password for Cursor
