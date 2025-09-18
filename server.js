@@ -138,6 +138,7 @@ const transporter = nodemailer.createTransport({
 
 // Demo mode - set to false to send real emails
 const DEMO_MODE = false;
+const DEFAULT_FROM = process.env.EMAIL_USER || 'papertags.notify@gmail.com';
 
 // Helper function to send emails (with demo mode support)
 async function sendEmail(mailOptions) {
@@ -149,7 +150,8 @@ async function sendEmail(mailOptions) {
     console.log('=====================================\n');
     return { messageId: 'demo-' + Date.now() };
   } else {
-    return await transporter.sendMail(mailOptions);
+    const finalOptions = { from: DEFAULT_FROM, ...mailOptions };
+    return await transporter.sendMail(finalOptions);
   }
 }
 
@@ -282,7 +284,8 @@ app.get('/', (req, res) => {
 app.get('/tag/:hashedTagId', async (req, res) => {
   try {
     const { hashedTagId } = req.params;
-    const finderIP = req.ip || req.connection.remoteAddress;
+    const fwd = req.headers['x-forwarded-for'];
+    const finderIP = (Array.isArray(fwd) ? fwd[0] : (fwd ? fwd.split(',')[0] : null)) || req.ip || req.connection.remoteAddress;
 
     // Get tag information using hashed ID
     const tag = await new Promise((resolve, reject) => {
@@ -627,7 +630,8 @@ app.post('/api/scan/:tagId', async (req, res) => {
   try {
     const { tagId } = req.params;
     const { message, pinLatitude, pinLongitude } = req.body;
-    const finderIP = req.ip || req.connection.remoteAddress;
+    const fwd2 = req.headers['x-forwarded-for'];
+    const finderIP = (Array.isArray(fwd2) ? fwd2[0] : (fwd2 ? fwd2.split(',')[0] : null)) || req.ip || req.connection.remoteAddress;
 
     // Get tag information
     const tag = await new Promise((resolve, reject) => {
@@ -1077,7 +1081,8 @@ app.get('/health', (req, res) => {
 // Approximate IP-based location (no browser prompt)
 app.get('/api/ip-location', async (req, res) => {
   try {
-    const ip = req.ip || req.connection.remoteAddress;
+    const fwd = req.headers['x-forwarded-for'];
+    const ip = (Array.isArray(fwd) ? fwd[0] : (fwd ? fwd.split(',')[0] : null)) || req.ip || req.connection.remoteAddress;
     const loc = await getLocationFromIP(ip);
     res.json(loc);
   } catch (e) {
