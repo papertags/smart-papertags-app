@@ -162,7 +162,7 @@ transporter.verify((error, success) => {
   }
 });
 
-// Helper function to get geolocation from IP
+// Helper function to get geolocation from IP with a short timeout
 async function getLocationFromIP(ip) {
   try {
     // Skip geolocation for localhost/private IPs
@@ -174,22 +174,35 @@ async function getLocationFromIP(ip) {
       };
     }
 
-    const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,city,regionName,country,lat,lon`);
-    const data = await response.json();
-    
-    if (data.status === 'success') {
-      return {
-        city: data.city || 'Unknown City',
-        region: data.regionName || 'Unknown Region',
-        country: data.country || 'Unknown Country',
-        lat: data.lat,
-        lon: data.lon
-      };
-    } else {
-      console.log('IP API error:', data.message);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+    try {
+      const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,city,regionName,country,lat,lon`, { signal: controller.signal });
+      const data = await response.json();
+      clearTimeout(timeout);
+
+      if (data.status === 'success') {
+        return {
+          city: data.city || 'Unknown City',
+          region: data.regionName || 'Unknown Region',
+          country: data.country || 'Unknown Country',
+          lat: data.lat,
+          lon: data.lon
+        };
+      } else {
+        console.log('IP API error:', data.message);
+        return {
+          city: 'Unknown City',
+          region: 'Unknown Region', 
+          country: 'Unknown Country'
+        };
+      }
+    } catch (err) {
+      // Timeout or fetch error
+      console.warn('IP geolocation skipped (timeout/error).');
       return {
         city: 'Unknown City',
-        region: 'Unknown Region', 
+        region: 'Unknown Region',
         country: 'Unknown Country'
       };
     }
@@ -270,7 +283,7 @@ app.get('/tag/:hashedTagId', async (req, res) => {
   try {
     const { hashedTagId } = req.params;
     const finderIP = req.ip || req.connection.remoteAddress;
-    
+
     // Get tag information using hashed ID
     const tag = await new Promise((resolve, reject) => {
       db.get('SELECT * FROM tags WHERE hashed_tag_id = ? AND is_assigned = TRUE', [hashedTagId], (err, row) => {
@@ -283,49 +296,55 @@ app.get('/tag/:hashedTagId', async (req, res) => {
       return res.sendFile(path.join(__dirname, 'public', 'tag-not-found.html'));
     }
 
-    // Get approximate location from IP
-    const location = await getLocationFromIP(finderIP);
-
-    // Log the scan
-    await new Promise((resolve, reject) => {
-      db.run('INSERT INTO scan_logs (tag_id, finder_ip, finder_location, message, pin_latitude, pin_longitude) VALUES (?, ?, ?, ?, ?, ?)',
-        [hashedTagId, finderIP, location ? `${location.city}, ${location.region}, ${location.country}` : 'Unknown', 'Tag scanned via claimable link', null, null], (err) => {
-          if (err) reject(err);
-          else resolve();
-        });
-    });
-
-    // If tag is claimed, show finder page and send email notification
+    // Serve page immediately (no blocking on network I/O)
     if (tag.is_claimed) {
-      // Send email notification to owner
-      if (tag.contact_email) {
-        try {
-          const mailOptions = {
-            from: process.env.EMAIL_USER || 'your-email@gmail.com',
-            to: tag.contact_email,
-            subject: 'Found your tag!',
-            html: `
-              <h2>Found your tag!</h2>
-              <p><strong>Tag ID:</strong> ${tag.tag_id}</p>
-              <p><strong>Found at:</strong> ${new Date().toLocaleString()}</p>
-              <p><strong>Approximate location:</strong> ${location && location.city ? `${location.city}, ${location.region}, ${location.country}` : 'Location not available'}</p>
-              <p>Thank you for using Smart PaperTags!</p>
-            `
-          };
-
-          await sendEmail(mailOptions);
-        } catch (emailError) {
-          console.error('Email sending error:', emailError);
-          // Don't fail the scan if email fails
-        }
-      }
-
-      // Serve the finder page for claimed tags
       res.sendFile(path.join(__dirname, 'public', 'finder.html'));
     } else {
-      // If tag is not claimed, show registration/claim page
       res.sendFile(path.join(__dirname, 'public', 'claim.html'));
     }
+
+    // Fire-and-forget: log scan and optionally email owner
+    (async () => {
+      try {
+        const location = await getLocationFromIP(finderIP);
+        await new Promise((resolve, reject) => {
+          db.run(
+            'INSERT INTO scan_logs (tag_id, finder_ip, finder_location, message, pin_latitude, pin_longitude) VALUES (?, ?, ?, ?, ?, ?)',
+            [
+              hashedTagId,
+              finderIP,
+              location ? `${location.city}, ${location.region}, ${location.country}` : 'Unknown',
+              'Tag scanned via claimable link',
+              null,
+              null
+            ],
+            (err) => (err ? reject(err) : resolve())
+          );
+        });
+
+        if (tag.is_claimed && tag.contact_email) {
+          try {
+            const mailOptions = {
+              from: process.env.EMAIL_USER || 'your-email@gmail.com',
+              to: tag.contact_email,
+              subject: 'Found your tag!',
+              html: `
+                <h2>Found your tag!</h2>
+                <p><strong>Tag ID:</strong> ${tag.tag_id}</p>
+                <p><strong>Found at:</strong> ${new Date().toLocaleString()}</p>
+                <p><strong>Approximate location:</strong> ${location && location.city ? `${location.city}, ${location.region}, ${location.country}` : 'Location not available'}</p>
+                <p>Thank you for using Smart PaperTags!</p>
+              `
+            };
+            await sendEmail(mailOptions);
+          } catch (emailError) {
+            console.error('Email sending error (background):', emailError);
+          }
+        }
+      } catch (bgErr) {
+        console.error('Background logging/email error:', bgErr);
+      }
+    })();
   } catch (error) {
     console.error('Tag scan error:', error);
     res.status(500).send('Internal server error');
