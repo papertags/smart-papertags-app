@@ -16,16 +16,12 @@
             --uva-dark-blue: #1A2332;
         }
         
-        .claim-container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 2rem;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            box-shadow: 0 10px 40px rgba(35, 45, 75, 0.2);
-            margin-top: 2rem;
-            border: 3px solid var(--uva-orange);
-        }
+        html { box-sizing: border-box; }
+        *, *::before, *::after { box-sizing: inherit; }
+        body { margin: 0; padding: 0; overflow-x: hidden; }
+        .container { padding: 0 1rem; }
+        
+        .claim-container { width: 100%; max-width: 600px; }
         
         .claim-header {
             text-align: center;
@@ -185,6 +181,12 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 480px) {
+            .claim-container { padding: 1rem; border-width: 2px; }
+            .claim-form { padding: 1rem; }
+            .btn { padding: 0.85rem 1rem; }
         }
         
         .toast {
