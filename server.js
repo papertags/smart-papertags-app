@@ -338,7 +338,7 @@ app.get('/tag/:hashedTagId', async (req, res) => {
       res.sendFile(path.join(__dirname, 'public', 'claim.html'));
     }
 
-    // Fire-and-forget: log scan and optionally email owner
+    // Fire-and-forget: only log scan (no email on initial scan)
     (async () => {
       try {
         const location = await getLocationFromIP(finderIP);
@@ -356,26 +356,6 @@ app.get('/tag/:hashedTagId', async (req, res) => {
             (err) => (err ? reject(err) : resolve())
           );
         });
-
-        if (tag.is_claimed && tag.contact_email) {
-          try {
-            const mailOptions = {
-              from: process.env.EMAIL_USER || 'your-email@gmail.com',
-              to: tag.contact_email,
-              subject: 'Found your tag!',
-              html: `
-                <h2>Found your tag!</h2>
-                <p><strong>Tag ID:</strong> ${tag.tag_id}</p>
-                <p><strong>Found at:</strong> ${new Date().toLocaleString()}</p>
-                <p><strong>Approximate location:</strong> ${location && location.city ? `${location.city}, ${location.region}, ${location.country}` : 'Location not available'}</p>
-                <p>Thank you for using Smart PaperTags!</p>
-              `
-            };
-            await sendEmail(mailOptions);
-          } catch (emailError) {
-            console.error('Email sending error (background):', emailError);
-          }
-        }
       } catch (bgErr) {
         console.error('Background logging/email error:', bgErr);
       }
