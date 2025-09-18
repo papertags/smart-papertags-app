@@ -227,3 +227,4 @@ For support or questions:
 ---
 
 **Note**: This is a demonstration application. For production use, consider additional security measures, database optimization, and proper deployment practices.
+# Smart PaperTags NFC App - Deployed to Railway
