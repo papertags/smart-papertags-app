@@ -250,6 +250,31 @@ async function getLocationFromIP(ip) {
   }
 }
 
+// Reverse geocode helper for lat/lon -> City, Region, Country (best-effort)
+async function reverseGeocodeCityRegionCountry(lat, lon) {
+  try {
+    if (typeof lat !== 'number' || typeof lon !== 'number') return null;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=10&addressdetails=1`;
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'SmartPaperTags/1.0 (contact: onboarding@resend.dev)' },
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const addr = data && data.address ? data.address : {};
+    const cityLike = addr.city || addr.town || addr.village || addr.hamlet || addr.suburb;
+    const region = addr.state || addr.county || addr.region;
+    const country = addr.country;
+    const parts = [cityLike, region, country].filter(Boolean);
+    return parts.length ? parts.join(', ') : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 // Helper function to generate secure hashed tag ID
 function generateHashedTagId() {
   const randomBytes = crypto.randomBytes(16);
@@ -830,9 +855,20 @@ app.post('/api/tag/:hashedTagId/found', async (req, res) => {
     if (tag.is_claimed && tag.contact_email) {
       (async () => {
         try {
-          const approxText = (location && location.city && location.region && location.country)
-            ? `${location.city}, ${location.region}, ${location.country}`
-            : 'UVA Rotunda, Charlottesville, VA';
+          let approxText = 'UVA Rotunda, Charlottesville, VA';
+          // Prefer the dropped pin location for human-friendly area
+          if (typeof pinLatitude === 'number' && typeof pinLongitude === 'number') {
+            const human = await reverseGeocodeCityRegionCountry(pinLatitude, pinLongitude);
+            if (human) {
+              approxText = human;
+            } else if (location && location.city && location.region && location.country) {
+              approxText = `${location.city}, ${location.region}, ${location.country}`;
+            } else {
+              approxText = `${pinLatitude.toFixed(5)}, ${pinLongitude.toFixed(5)}`;
+            }
+          } else if (location && location.city && location.region && location.country) {
+            approxText = `${location.city}, ${location.region}, ${location.country}`;
+          }
           const mailOptions = {
             from: process.env.EMAIL_USER || 'your-email@gmail.com',
             to: tag.contact_email,
