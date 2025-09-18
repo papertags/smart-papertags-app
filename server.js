@@ -140,7 +140,33 @@ const transporter = nodemailer.createTransport({
 
 // Demo mode - set to false to send real emails
 const DEMO_MODE = false;
-const DEFAULT_FROM = process.env.EMAIL_USER || 'papertags.notify@gmail.com';
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const DEFAULT_FROM = process.env.RESEND_FROM || process.env.EMAIL_USER || 'onboarding@resend.dev';
+
+async function sendViaResend(mailOptions) {
+  const payload = {
+    from: mailOptions.from || DEFAULT_FROM,
+    to: Array.isArray(mailOptions.to) ? mailOptions.to : [mailOptions.to],
+    subject: mailOptions.subject || '',
+    html: mailOptions.html || undefined,
+    text: mailOptions.text || undefined,
+    reply_to: mailOptions.replyTo || undefined
+  };
+  const resp = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Resend API error: ${resp.status} ${errText}`);
+  }
+  const data = await resp.json();
+  return { messageId: data?.id || `resend-${Date.now()}` };
+}
 
 // Helper function to send emails (with demo mode support)
 async function sendEmail(mailOptions) {
@@ -153,6 +179,9 @@ async function sendEmail(mailOptions) {
     return { messageId: 'demo-' + Date.now() };
   } else {
     const finalOptions = { from: DEFAULT_FROM, ...mailOptions };
+    if (RESEND_API_KEY) {
+      return await sendViaResend(finalOptions);
+    }
     return await transporter.sendMail(finalOptions);
   }
 }
