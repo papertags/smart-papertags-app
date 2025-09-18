@@ -41,6 +41,10 @@ db.serialize(() => {
     name TEXT NOT NULL,
     phone TEXT,
     role TEXT DEFAULT 'user',
+    instagram TEXT,
+    snapchat TEXT,
+    linkedin TEXT,
+    profile_image TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
@@ -84,6 +88,37 @@ db.serialize(() => {
     pin_longitude REAL,
     FOREIGN KEY (tag_id) REFERENCES tags (hashed_tag_id)
   )`);
+
+  // Add missing columns to existing tables
+  db.run(`ALTER TABLE users ADD COLUMN instagram TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding instagram column:', err);
+    }
+  });
+  
+  db.run(`ALTER TABLE users ADD COLUMN snapchat TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding snapchat column:', err);
+    }
+  });
+  
+  db.run(`ALTER TABLE users ADD COLUMN linkedin TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding linkedin column:', err);
+    }
+  });
+  
+  db.run(`ALTER TABLE users ADD COLUMN profile_image TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding profile_image column:', err);
+    }
+  });
+
+  db.run(`ALTER TABLE tags ADD COLUMN tag_name TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding tag_name column:', err);
+    }
+  });
 });
 
 // Email configuration (using Gmail as example)
