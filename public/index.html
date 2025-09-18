@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart PaperTags NFC App</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-tag"></i>
+                <h1>Smart PaperTags</h1>
+            </div>
+            <div class="user-info" id="userInfo" style="display: none;">
+                <span id="userName"></span>
+                <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Login/Register Section -->
+            <div id="authSection" class="auth-section">
+                <div class="auth-tabs">
+                    <button class="tab-btn active" data-tab="login">Login</button>
+                    <button class="tab-btn" data-tab="register">Register</button>
+                </div>
+
+                <!-- Login Form -->
+                <div id="loginForm" class="auth-form active">
+                    <h2>Welcome Back</h2>
+                    <form id="loginFormElement">
+                        <div class="form-group">
+                            <label for="loginEmail">Email</label>
+                            <input type="email" id="loginEmail" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="loginPassword">Password</label>
+                            <input type="password" id="loginPassword" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Login</button>
+                    </form>
+                </div>
+
+                <!-- Register Form -->
+                <div id="registerForm" class="auth-form">
+                    <h2>Create Account</h2>
+                    <form id="registerFormElement">
+                        <div class="form-group">
+                            <label for="registerName">Full Name</label>
+                            <input type="text" id="registerName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="registerEmail">Email</label>
+                            <input type="email" id="registerEmail" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="registerPassword">Password</label>
+                            <input type="password" id="registerPassword" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="registerPhone">Phone (Optional)</label>
+                            <input type="tel" id="registerPhone">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Register</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Dashboard Section -->
+            <div id="dashboardSection" class="dashboard-section" style="display: none;">
+                <div class="dashboard-header">
+                    <h2>My PaperTags</h2>
+                    <p style="color: #666; margin-top: 0.5rem;">To claim a new tag, scan the NFC tag or visit the claimable link</p>
+                </div>
+
+                <div id="tagsList" class="tags-list">
+                    <!-- Tags will be loaded here -->
+                </div>
+            </div>
+
+
+            <!-- Edit Tag Modal -->
+            <div id="tagModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="modalTitle">Edit Tag Information</h3>
+                        <button class="close-btn" id="closeModal">&times;</button>
+                    </div>
+                    <form id="tagForm">
+                        <input type="hidden" id="editTagId">
+                        <div class="form-group">
+                            <label for="tagName">Tag Name</label>
+                            <input type="text" id="tagName" required>
+                            <small style="color: #666; font-size: 0.9rem; margin-top: 0.5rem; display: block;">
+                                Give your tag a memorable name to identify it easily
+                            </small>
+                        </div>
+                        <div class="form-group">
+                            <label for="contactName">Contact Name</label>
+                            <input type="text" id="contactName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="contactEmail">Contact Email</label>
+                            <input type="email" id="contactEmail" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="contactPhone">Contact Phone (Optional)</label>
+                            <input type="tel" id="contactPhone">
+                        </div>
+                        <div class="form-group">
+                            <label for="instagram">Instagram (Optional)</label>
+                            <input type="text" id="instagram" placeholder="@yourusername">
+                        </div>
+                        <div class="form-group">
+                            <label for="snapchat">Snapchat (Optional)</label>
+                            <input type="text" id="snapchat" placeholder="@yourusername">
+                        </div>
+                        <div class="form-group">
+                            <label for="linkedin">LinkedIn (Optional)</label>
+                            <input type="text" id="linkedin" placeholder="Your LinkedIn profile name">
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" id="cancelTag">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Update Tag Info</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Scan Section (for finders) -->
+            <div id="scanSection" class="scan-section" style="display: none;">
+                <div class="scan-header">
+                    <h2>Found a PaperTag?</h2>
+                    <p>Enter the Tag ID to contact the owner</p>
+                </div>
+                <div class="scan-form">
+                    <div class="form-group">
+                        <label for="scanTagId">NFC Tag ID</label>
+                        <input type="text" id="scanTagId" placeholder="Enter the NFC Tag ID">
+                    </div>
+                    <button id="scanBtn" class="btn btn-primary">Scan Tag</button>
+                </div>
+                <div id="scanResult" class="scan-result" style="display: none;">
+                    <!-- Scan results will be shown here -->
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <nav class="bottom-nav">
+                <button class="nav-btn active" data-section="dashboard">
+                    <i class="fas fa-home"></i>
+                    <span>My Tags</span>
+                </button>
+                <button class="nav-btn" data-section="scan">
+                    <i class="fas fa-search"></i>
+                    <span>Scan Tag</span>
+                </button>
+            </nav>
+        </main>
+
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="loading-spinner" style="display: none;">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Notification Toast -->
+        <div id="toast" class="toast"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claim Your PaperTag - Smart PaperTags</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --uva-orange: #E57200;
+            --uva-blue: #232D4B;
+            --uva-light-blue: #4A90E2;
+            --uva-light-orange: #FF8C42;
+            --uva-cream: #FFF8F0;
+            --uva-dark-blue: #1A2332;
+        }
+        
+        .claim-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(35, 45, 75, 0.2);
+            margin-top: 2rem;
+            border: 3px solid var(--uva-orange);
+        }
+        
+        .claim-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .claim-header h1 {
+            color: var(--uva-blue);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        .claim-header h1 i {
+            color: var(--uva-orange);
+        }
+        
+        .claim-header p {
+            color: var(--uva-dark-blue);
+            font-size: 1.1rem;
+        }
+        
+        .tag-info {
+            background: var(--uva-cream);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            border: 2px solid var(--uva-light-blue);
+        }
+        
+        .tag-info h3 {
+            color: var(--uva-blue);
+            margin-bottom: 1rem;
+        }
+        
+        .tag-id-display {
+            background: var(--uva-cream);
+            padding: 1rem;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--uva-orange);
+            margin-bottom: 1rem;
+            border: 2px solid var(--uva-orange);
+        }
+        
+        .claim-form {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 5px 20px rgba(35, 45, 75, 0.2);
+            border: 2px solid var(--uva-light-blue);
+        }
+        
+        .claim-form h3 {
+            color: var(--uva-blue);
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #28a745;
+            box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1);
+        }
+        
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            justify-content: center;
+            width: 100%;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #28a745;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .toast {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            background: #333;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 10000;
+        }
+        
+        .toast.show {
+            transform: translateX(0);
+        }
+        
+        .toast.success {
+            background: #28a745;
+        }
+        
+        .toast.error {
+            background: #dc3545;
+        }
+        
+        .instructions {
+            background: #e3f2fd;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .instructions h4 {
+            color: #1976d2;
+            margin-bottom: 1rem;
+        }
+        
+        .instructions ul {
+            color: #1976d2;
+            margin: 0;
+            padding-left: 1.5rem;
+        }
+        
+        .instructions li {
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="claim-container">
+            <div class="claim-header">
+                <h1><i class="fas fa-hand-holding"></i> Claim Your PaperTag</h1>
+                <p>You've received a Smart PaperTag! Enter your details below to claim ownership.</p>
+            </div>
+            
+            <div class="tag-info">
+                <h3>Your PaperTag ID</h3>
+                <div class="tag-id-display" id="tagIdDisplay">
+                    Loading...
+                </div>
+                <p style="color: #666; margin: 0;">Keep this ID safe - you'll need it to manage your tag</p>
+            </div>
+            
+            <div class="instructions">
+                <h4><i class="fas fa-info-circle"></i> How it works:</h4>
+                <ul>
+                    <li>Enter your email and password below</li>
+                    <li>If you don't have an account, one will be created automatically</li>
+                    <li>This tag will be linked to your account</li>
+                    <li>If someone finds your item, they can contact you</li>
+                    <li>You'll receive email notifications when found</li>
+                </ul>
+            </div>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Loading tag information...</p>
+            </div>
+            
+            <div class="success-message" id="successMessage">
+                <i class="fas fa-check-circle"></i> Tag claimed successfully! You can now log in to your account to manage your tags.
+                <div style="margin-top: 1rem;">
+                    <a href="/" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-home"></i> Go to Dashboard
+                    </a>
+                </div>
+            </div>
+            
+            <div class="error-message" id="errorMessage">
+                <i class="fas fa-exclamation-circle"></i> <span id="errorText"></span>
+            </div>
+            
+            <div id="content" style="display: none;">
+                <form class="claim-form" id="claimForm">
+                    <h3>Claim This Tag</h3>
+                    
+                    <div class="form-group">
+                        <label for="email">Email Address</label>
+                        <input type="email" id="email" placeholder="Enter your email address" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" placeholder="Enter your password" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="tagName">Tag Name</label>
+                        <input type="text" id="tagName" placeholder="e.g., My Keys, Work Bag, Bike" required>
+                        <small style="color: #666; font-size: 0.9rem; margin-top: 0.5rem; display: block;">
+                            Give your tag a memorable name to identify it easily
+                        </small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="contactName">Your Full Name</label>
+                        <input type="text" id="contactName" placeholder="Enter your full name" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="contactPhone">Your Phone Number (Optional)</label>
+                        <input type="tel" id="contactPhone" placeholder="Enter your phone number">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="instagram">Instagram (Optional)</label>
+                        <input type="text" id="instagram" placeholder="@yourusername">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="snapchat">Snapchat (Optional)</label>
+                        <input type="text" id="snapchat" placeholder="@yourusername">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="linkedin">LinkedIn (Optional)</label>
+                        <input type="text" id="linkedin" placeholder="Your LinkedIn profile name">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-success" id="claimBtn">
+                        <i class="fas fa-hand-holding"></i> Claim This Tag
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class ClaimApp {
+            constructor() {
+                this.tagId = this.getTagIdFromUrl();
+                this.init();
+            }
+            
+            getTagIdFromUrl() {
+                const path = window.location.pathname;
+                const match = path.match(/\/tag\/(.+)/);
+                return match ? match[1] : null;
+            }
+            
+            async init() {
+                if (!this.tagId) {
+                    this.showError('Invalid tag ID');
+                    return;
+                }
+                
+                this.showLoading(true);
+                await this.loadTagInfo();
+                this.showLoading(false);
+            }
+            
+            async loadTagInfo() {
+                try {
+                    const response = await fetch(`/api/tag-info/${this.tagId}`);
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to load tag information');
+                    }
+                    
+                    this.displayTagInfo(data);
+                } catch (error) {
+                    this.showError('Failed to load tag information: ' + error.message);
+                }
+            }
+            
+            displayTagInfo(data) {
+                document.getElementById('tagIdDisplay').textContent = data.tagId;
+                document.getElementById('content').style.display = 'block';
+            }
+            
+            async handleSubmit(e) {
+                e.preventDefault();
+                this.showLoading(true);
+
+                try {
+                    const data = {
+                        tagId: document.getElementById('tagIdDisplay').textContent,
+                        email: document.getElementById('email').value,
+                        password: document.getElementById('password').value,
+                        tagName: document.getElementById('tagName').value,
+                        contactName: document.getElementById('contactName').value,
+                        contactPhone: document.getElementById('contactPhone').value,
+                        instagram: document.getElementById('instagram').value,
+                        snapchat: document.getElementById('snapchat').value,
+                        linkedin: document.getElementById('linkedin').value
+                    };
+
+                    const response = await fetch('/api/claim-tag', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data)
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(result.error || 'Failed to claim tag');
+                    }
+                    
+                    this.showSuccess();
+                } catch (error) {
+                    this.showError('Failed to claim tag: ' + error.message);
+                } finally {
+                    this.showLoading(false);
+                }
+            }
+            
+            showLoading(show) {
+                document.getElementById('loading').style.display = show ? 'block' : 'none';
+                document.getElementById('content').style.display = show ? 'none' : 'block';
+            }
+            
+            showError(message) {
+                document.getElementById('errorText').textContent = message;
+                document.getElementById('errorMessage').style.display = 'block';
+                document.getElementById('content').style.display = 'none';
+            }
+            
+            showSuccess() {
+                document.getElementById('successMessage').style.display = 'block';
+                document.getElementById('claimForm').style.display = 'none';
+                document.getElementById('claimBtn').disabled = true;
+            }
+        }
+        
+        // Initialize the app when the DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            const app = new ClaimApp();
+            
+            // Handle form submission
+            document.getElementById('claimForm').addEventListener('submit', (e) => {
+                app.handleSubmit(e);
+            });
+        });
+    </script>
+</body>
+</html>

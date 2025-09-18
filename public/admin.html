@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Smart PaperTags</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --uva-orange: #E57200;
+            --uva-blue: #232D4B;
+            --uva-light-blue: #4A90E2;
+            --uva-light-orange: #FF8C42;
+            --uva-cream: #FFF8F0;
+            --uva-dark-blue: #1A2332;
+        }
+        
+        .admin-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .admin-header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-radius: 20px;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 20px rgba(35, 45, 75, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 3px solid var(--uva-orange);
+        }
+        
+        .admin-header h1 {
+            color: var(--uva-blue);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .admin-header h1 i {
+            color: var(--uva-orange);
+        }
+        
+        .admin-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 1.5rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(35, 45, 75, 0.2);
+            text-align: center;
+            border: 2px solid var(--uva-light-blue);
+        }
+        
+        .stat-card h3 {
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .admin-actions {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 2rem;
+            border-radius: 20px;
+            margin-bottom: 2rem;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .admin-actions h2 {
+            color: #333;
+            margin-bottom: 1.5rem;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+        
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        .btn-warning:hover {
+            background: #e0a800;
+            transform: translateY(-2px);
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+        
+        .tags-table {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            overflow-x: auto;
+        }
+        
+        .tags-table h2 {
+            color: #333;
+            margin-bottom: 1.5rem;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .status-assigned {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-claimed {
+            background: #cce5ff;
+            color: #004085;
+        }
+        
+        .status-unassigned {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .tag-id {
+            font-family: 'Courier New', monospace;
+            background: #f8f9fa;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .hashed-id {
+            font-family: 'Courier New', monospace;
+            background: #e9ecef;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: #666;
+            word-break: break-all;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .modal-header h3 {
+            color: #333;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+            padding: 0.5rem;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        .close-btn:hover {
+            background: #f8f9fa;
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .toast {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            background: #333;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 10000;
+        }
+        
+        .toast.show {
+            transform: translateX(0);
+        }
+        
+        .toast.success {
+            background: #28a745;
+        }
+        
+        .toast.error {
+            background: #dc3545;
+        }
+        
+        .login-section {
+            max-width: 400px;
+            margin: 2rem auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        .login-section h2 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: #333;
+        }
+        
+        .admin-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .admin-info span {
+            color: #333;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login Section -->
+        <div id="loginSection" class="login-section">
+            <h2><i class="fas fa-shield-alt"></i> Admin Login</h2>
+            <form id="adminLoginForm">
+                <div class="form-group">
+                    <label for="adminEmail">Email</label>
+                    <input type="email" id="adminEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="adminPassword">Password</label>
+                    <input type="password" id="adminPassword" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </button>
+            </form>
+        </div>
+
+        <!-- Admin Dashboard -->
+        <div id="adminDashboard" class="admin-container" style="display: none;">
+            <!-- Header -->
+            <div class="admin-header">
+                <h1><i class="fas fa-shield-alt"></i> Admin Dashboard</h1>
+                <div class="admin-info">
+                    <span id="adminName"></span>
+                    <button id="logoutBtn" class="btn btn-secondary">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="admin-stats">
+                <div class="stat-card">
+                    <h3>Total Tags</h3>
+                    <div class="number" id="totalTags">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Assigned Tags</h3>
+                    <div class="number" id="assignedTags">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Claimed Tags</h3>
+                    <div class="number" id="claimedTags">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Unassigned Tags</h3>
+                    <div class="number" id="unassignedTags">0</div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="admin-actions">
+                <h2>Tag Management</h2>
+                <div class="action-buttons">
+                    <button id="generateTagsBtn" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Generate New Tags
+                    </button>
+                    <button id="refreshTagsBtn" class="btn btn-secondary">
+                        <i class="fas fa-refresh"></i> Refresh
+                    </button>
+                    <button id="createAdminBtn" class="btn btn-warning">
+                        <i class="fas fa-user-plus"></i> Create Admin
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tags Table -->
+            <div class="tags-table">
+                <h2>All Tags</h2>
+                <div id="tagsTableContainer">
+                    <table id="tagsTable">
+                        <thead>
+                            <tr>
+                                <th>Tag ID</th>
+                                <th>Hashed ID</th>
+                                <th>Status</th>
+                                <th>Owner</th>
+                                <th>Assigned</th>
+                                <th>Claimed</th>
+                                <th>Claimable Link</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tagsTableBody">
+                            <!-- Tags will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generate Tags Modal -->
+        <div id="generateModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Generate New Tags</h3>
+                    <button class="close-btn" id="closeGenerateModal">&times;</button>
+                </div>
+                <form id="generateForm">
+                    <div class="form-group">
+                        <label for="tagCount">Number of tags to generate</label>
+                        <input type="number" id="tagCount" min="1" max="100" value="1" required>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="cancelGenerate">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Generate Tags</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Create Admin Modal -->
+        <div id="createAdminModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Create New Admin</h3>
+                    <button class="close-btn" id="closeCreateAdminModal">&times;</button>
+                </div>
+                <form id="createAdminForm">
+                    <div class="form-group">
+                        <label for="newAdminName">Name</label>
+                        <input type="text" id="newAdminName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newAdminEmail">Email</label>
+                        <input type="email" id="newAdminEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newAdminPassword">Password</label>
+                        <input type="password" id="newAdminPassword" required>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="cancelCreateAdmin">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Admin</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="loading">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+
+        <!-- Toast Notification -->
+        <div id="toast" class="toast"></div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>
