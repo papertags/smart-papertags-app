@@ -1097,17 +1097,19 @@ app.post('/api/test-email', async (req, res) => {
   try {
     const { to, subject, text } = req.body;
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'your-email@gmail.com',
+      from: DEFAULT_FROM,
       to: to || 'test@example.com',
       subject: subject || 'Test Email',
-      text: text || 'This is a test email from the PaperTags system!'
+      text: text || 'This is a test email from the PaperTags system!',
+      html: `<p>${(text || 'This is a test email from the PaperTags system!')}</p>`,
+      replyTo: DEFAULT_FROM
     };
     
     const result = await sendEmail(mailOptions);
     res.json({ message: 'Email sent successfully', messageId: result.messageId });
   } catch (error) {
     console.error('Test email error:', error);
-    res.status(500).json({ error: 'Failed to send test email' });
+    res.status(500).json({ error: 'Failed to send test email', details: error && (error.response || error.message || String(error)) });
   }
 });
 
