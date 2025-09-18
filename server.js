@@ -178,7 +178,8 @@ async function sendEmail(mailOptions) {
     console.log('=====================================\n');
     return { messageId: 'demo-' + Date.now() };
   } else {
-    const finalOptions = { from: DEFAULT_FROM, ...mailOptions };
+    // Force default FROM to avoid unverified domain rejections
+    const finalOptions = { ...mailOptions, from: DEFAULT_FROM };
     if (RESEND_API_KEY) {
       return await sendViaResend(finalOptions);
     }
