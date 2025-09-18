@@ -387,46 +387,33 @@
             
             async initMap() {
                 try {
-                    // Get user's current location
-                    const position = await this.getCurrentPosition();
-                    this.userLocation = {
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude
-                    };
-                    
-                    // Initialize map
-                    this.map = L.map('map').setView([this.userLocation.lat, this.userLocation.lng], 13);
-                    
+                    // Use server-side IP-based approximate location
+                    const resp = await fetch('/api/ip-location');
+                    const approx = await resp.json();
+
+                    let center = [20, 0]; // world default
+                    if (approx && typeof approx.lat === 'number' && typeof approx.lon === 'number') {
+                        center = [approx.lat, approx.lon];
+                    }
+
+                    this.map = L.map('map').setView(center, 11);
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         attribution: '© OpenStreetMap contributors'
                     }).addTo(this.map);
-                    
-                    // Add marker for user's location
-                    L.marker([this.userLocation.lat, this.userLocation.lng])
-                        .addTo(this.map)
-                        .bindPopup('Your current location')
-                        .openPopup();
-                    
-                    // Update location text
-                    document.getElementById('locationText').textContent = 
-                        `Your location: ${this.userLocation.lat.toFixed(6)}, ${this.userLocation.lng.toFixed(6)}`;
-                    
-                    // Add click handler for pin placement
+
+                    const locText = [approx?.city, approx?.region, approx?.country].filter(Boolean).join(', ') || 'Unknown area';
+                    document.getElementById('locationText').textContent = `Approximate area: ${locText}. Tap to drop a pin.`;
+
                     this.map.on('click', (e) => {
                         this.placePin(e.latlng);
                     });
-                    
                 } catch (error) {
-                    console.error('Location error:', error);
-                    // Fallback to default world view and allow manual pin
+                    console.error('IP location error:', error);
                     this.map = L.map('map').setView([0, 0], 2);
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         attribution: '© OpenStreetMap contributors'
                     }).addTo(this.map);
-
-                    document.getElementById('locationText').textContent = 
-                        'Location access denied. Please click on the map to mark where you found the item.';
-
+                    document.getElementById('locationText').textContent = 'Tap the map to drop a pin where you found the item.';
                     this.map.on('click', (e) => {
                         this.placePin(e.latlng);
                     });
@@ -439,13 +426,13 @@
                     this.map.removeLayer(this.marker);
                 }
                 
-                // Add new pin
+                // Add big, tappable pin
                 this.marker = L.marker([latlng.lat, latlng.lng], {
                     icon: L.divIcon({
                         className: 'custom-pin',
-                        html: '<i class="fas fa-map-pin" style="color: #e74c3c; font-size: 24px;"></i>',
-                        iconSize: [24, 24],
-                        iconAnchor: [12, 24]
+                        html: '<i class="fas fa-map-pin" style="color: #e74c3c; font-size: 40px;"></i>',
+                        iconSize: [40, 40],
+                        iconAnchor: [20, 40]
                     })
                 }).addTo(this.map);
                 

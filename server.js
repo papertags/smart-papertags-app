@@ -1074,6 +1074,17 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Approximate IP-based location (no browser prompt)
+app.get('/api/ip-location', async (req, res) => {
+  try {
+    const ip = req.ip || req.connection.remoteAddress;
+    const loc = await getLocationFromIP(ip);
+    res.json(loc);
+  } catch (e) {
+    res.status(200).json({ city: 'Unknown City', region: 'Unknown Region', country: 'Unknown Country' });
+  }
+});
+
 // Test email endpoint
 app.post('/api/test-email', async (req, res) => {
   try {
