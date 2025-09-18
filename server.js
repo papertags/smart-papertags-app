@@ -830,6 +830,9 @@ app.post('/api/tag/:hashedTagId/found', async (req, res) => {
     if (tag.is_claimed && tag.contact_email) {
       (async () => {
         try {
+          const approxText = (location && location.city && location.region && location.country)
+            ? `${location.city}, ${location.region}, ${location.country}`
+            : 'UVA Rotunda, Charlottesville, VA';
           const mailOptions = {
             from: process.env.EMAIL_USER || 'your-email@gmail.com',
             to: tag.contact_email,
@@ -838,7 +841,7 @@ app.post('/api/tag/:hashedTagId/found', async (req, res) => {
               <h2>Found your tag!</h2>
               <p><strong>Tag ID:</strong> ${tag.tag_id}</p>
               <p><strong>Found at:</strong> ${new Date().toLocaleString()}</p>
-              <p><strong>Approximate location:</strong> ${location && location.city ? `${location.city}, ${location.region}, ${location.country}` : 'Location not available'}</p>
+              <p><strong>Approximate location:</strong> ${approxText}</p>
               ${pinLatitude && pinLongitude ? `<p><strong>Exact location:</strong> <a href="https://maps.google.com/?q=${pinLatitude},${pinLongitude}" target="_blank">View on Google Maps</a></p>` : ''}
               ${message ? `<p><strong>Message from finder:</strong> ${message}</p>` : ''}
               <p>Thank you for using Smart PaperTags!</p>
