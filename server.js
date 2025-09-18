@@ -29,7 +29,7 @@ app.use(bodyParser.json());
 app.use(express.static('public'));
 
 // Initialize SQLite database
-const db = new sqlite3.Database('./papertags.db');
+const db = new sqlite3.Database('./database.db');
 
 // Create tables
 db.serialize(() => {
@@ -864,15 +864,25 @@ app.get('/api/admin/tags', authenticateAdminToken, async (req, res) => {
         LEFT JOIN users u ON t.owner_id = u.id
         ORDER BY t.created_at DESC
       `, (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows);
+        if (err) {
+          console.error('Database query error:', err);
+          reject(err);
+        } else {
+          resolve(rows || []);
+        }
       });
     });
 
-    res.json({ tags });
+    // Add claimable URLs to each tag
+    const tagsWithUrls = tags.map(tag => ({
+      ...tag,
+      claimableUrl: `${req.protocol}://${req.get('host')}/tag/${tag.hashed_tag_id}`
+    }));
+
+    res.json({ tags: tagsWithUrls });
   } catch (error) {
     console.error('Get tags error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
@@ -975,6 +985,21 @@ async function createDefaultAdmin() {
 // Admin route
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// Test database connection
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const result = await new Promise((resolve, reject) => {
+      db.get('SELECT COUNT(*) as count FROM tags', (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+    res.json({ message: 'Database connected', tagCount: result.count });
+  } catch (error) {
+    res.status(500).json({ error: 'Database error', details: error.message });
+  }
 });
 
 // Health check endpoint
