@@ -418,14 +418,18 @@
                     
                 } catch (error) {
                     console.error('Location error:', error);
-                    // Fallback to default location
+                    // Fallback to default world view and allow manual pin
                     this.map = L.map('map').setView([0, 0], 2);
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         attribution: '© OpenStreetMap contributors'
                     }).addTo(this.map);
-                    
+
                     document.getElementById('locationText').textContent = 
                         'Location access denied. Please click on the map to mark where you found the item.';
+
+                    this.map.on('click', (e) => {
+                        this.placePin(e.latlng);
+                    });
                 }
             }
             
@@ -458,10 +462,12 @@
                         reject(new Error('Geolocation is not supported by this browser'));
                         return;
                     }
-                    
-                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+
+                    navigator.geolocation.getCurrentPosition(resolve, (err) => {
+                        reject(err);
+                    }, {
                         enableHighAccuracy: true,
-                        timeout: 10000,
+                        timeout: 6000,
                         maximumAge: 0
                     });
                 });

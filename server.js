@@ -795,7 +795,7 @@ app.post('/api/tag/:hashedTagId/found', async (req, res) => {
       return res.status(404).json({ error: 'Tag not found or not assigned' });
     }
 
-    // Get approximate location from IP
+    // Get approximate location from IP (short timeout inside helper)
     const location = await getLocationFromIP(finderIP);
 
     // Log the scan with additional details
@@ -807,32 +807,33 @@ app.post('/api/tag/:hashedTagId/found', async (req, res) => {
         });
     });
 
-    // Send email notification to owner if tag is claimed
-    if (tag.is_claimed && tag.contact_email) {
-      try {
-        const mailOptions = {
-          from: process.env.EMAIL_USER || 'your-email@gmail.com',
-          to: tag.contact_email,
-          subject: 'Found your tag!',
-          html: `
-            <h2>Found your tag!</h2>
-            <p><strong>Tag ID:</strong> ${tag.tag_id}</p>
-            <p><strong>Found at:</strong> ${new Date().toLocaleString()}</p>
-            <p><strong>Approximate location:</strong> ${location && location.city ? `${location.city}, ${location.region}, ${location.country}` : 'Location not available'}</p>
-            ${pinLatitude && pinLongitude ? `<p><strong>Exact location:</strong> <a href="https://maps.google.com/?q=${pinLatitude},${pinLongitude}" target="_blank">View on Google Maps</a></p>` : ''}
-            ${message ? `<p><strong>Message from finder:</strong> ${message}</p>` : ''}
-            <p>Thank you for using Smart PaperTags!</p>
-          `
-        };
-
-        await sendEmail(mailOptions);
-      } catch (emailError) {
-        console.error('Email sending error:', emailError);
-        // Don't fail the scan if email fails
-      }
-    }
-
+    // Respond to finder immediately; do not block on email
     res.json({ message: 'Owner has been notified successfully' });
+
+    // Fire-and-forget email notification to owner if tag is claimed
+    if (tag.is_claimed && tag.contact_email) {
+      (async () => {
+        try {
+          const mailOptions = {
+            from: process.env.EMAIL_USER || 'your-email@gmail.com',
+            to: tag.contact_email,
+            subject: 'Found your tag!',
+            html: `
+              <h2>Found your tag!</h2>
+              <p><strong>Tag ID:</strong> ${tag.tag_id}</p>
+              <p><strong>Found at:</strong> ${new Date().toLocaleString()}</p>
+              <p><strong>Approximate location:</strong> ${location && location.city ? `${location.city}, ${location.region}, ${location.country}` : 'Location not available'}</p>
+              ${pinLatitude && pinLongitude ? `<p><strong>Exact location:</strong> <a href="https://maps.google.com/?q=${pinLatitude},${pinLongitude}" target="_blank">View on Google Maps</a></p>` : ''}
+              ${message ? `<p><strong>Message from finder:</strong> ${message}</p>` : ''}
+              <p>Thank you for using Smart PaperTags!</p>
+            `
+          };
+          await sendEmail(mailOptions);
+        } catch (emailError) {
+          console.error('Email sending error (background found):', emailError);
+        }
+      })();
+    }
   } catch (error) {
     console.error('Found item submission error:', error);
     res.status(500).json({ error: 'Internal server error' });
