@@ -33,7 +33,7 @@ body {
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 1440px;
     margin: 0 auto;
     min-height: 100vh;
     display: flex;
@@ -156,7 +156,7 @@ body {
 .tags-list {
     display: grid;
     gap: 1rem;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
 }
 
 .tag-card {
