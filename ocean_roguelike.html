@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ABYSS DIVER – Deep Ocean Roguelike</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    color: #ccc;
+    font-family: 'Courier New', Courier, monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  #game-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    border: 1px solid #1a4a6a;
+    box-shadow: 0 0 30px #0af4;
+  }
+  #info {
+    color: #4af;
+    font-size: 12px;
+    margin-top: 6px;
+    letter-spacing: 1px;
+  }
+  #screen {
+    display: none;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,10,0.92);
+    color: #0cf;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1.8;
+    text-align: center;
+    z-index: 10;
+    cursor: pointer;
+  }
+  #screen.active { display: flex; }
+  #screen h1 { color: #0ff; font-size: 2em; margin-bottom: 10px; text-shadow: 0 0 20px #0ff; }
+  #screen h2 { color: #f44; font-size: 1.6em; text-shadow: 0 0 10px #f44; }
+  #screen .gold { color: #fd0; }
+  #screen .dim { color: #458; font-size: 12px; }
+  #screen table { border-collapse: collapse; margin: 8px auto; }
+  #screen td { padding: 2px 12px; text-align: left; }
+  #screen td:first-child { color: #0af; }
+  #screen .prompt { color: #0f8; font-size: 13px; margin-top: 12px; animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  #inv-overlay {
+    display: none;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: #001020;
+    border: 1px solid #0af;
+    padding: 16px 24px;
+    min-width: 280px;
+    z-index: 20;
+    box-shadow: 0 0 20px #0af8;
+  }
+  #inv-overlay.active { display: block; }
+  #inv-overlay h3 { color: #0cf; margin-bottom: 8px; border-bottom: 1px solid #0af4; padding-bottom: 4px; }
+  #inv-overlay .inv-item {
+    padding: 4px 6px;
+    cursor: pointer;
+    border-radius: 2px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  #inv-overlay .inv-item:hover { background: #0af2; }
+  #inv-overlay .inv-item .glyph { color: #0f8; font-weight: bold; min-width: 20px; }
+  #inv-overlay .inv-item .iname { color: #ccc; }
+  #inv-overlay .inv-item .itype { color: #458; font-size: 11px; }
+  #inv-overlay .inv-hint { color: #458; font-size: 11px; margin-top: 8px; border-top: 1px solid #0af2; padding-top: 6px; }
+  #inv-overlay .inv-empty { color: #445; padding: 8px; }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <canvas id="c"></canvas>
+  <div id="info">Arrow keys / WASD to move &nbsp;|&nbsp; G: pick up &nbsp;|&nbsp; I: inventory &nbsp;|&nbsp; ?: help &nbsp;|&nbsp; Q: quit</div>
+
+  <div id="screen" class="active">
+    <div id="screen-content"></div>
+  </div>
+
+  <div id="inv-overlay">
+    <h3>── INVENTORY ──</h3>
+    <div id="inv-list"></div>
+    <div class="inv-hint">Click item to USE &nbsp;|&nbsp; Press ESC or I to close</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ── Canvas setup ────────────────────────────────────────────────────────────
+const COLS = 80, ROWS = 26;
+const CH = 16, CW = 10;
+const canvas = document.getElementById('c');
+canvas.width  = COLS * CW;
+canvas.height = ROWS * CH;
+const ctx = canvas.getContext('2d');
+ctx.font = `${CH}px "Courier New", monospace`;
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+const COL = {
+  wall:    '#1a3a5a', wallDim: '#0d1e2e',
+  floor:   '#334455', floorDim:'#1a2230',
+  water:   '#0088bb', waterDim:'#004466',
+  player:  '#ffffff',
+  enemy:   '#ff4444',
+  boss:    '#ff44ff',
+  item:    '#44ff88',
+  ui:      '#00aacc',
+  danger:  '#ff3333',
+  dark:    '#222233',
+  coral:   '#994488',
+  treasure:'#ffcc00',
+  o2:      '#00ccff',
+  bg:      '#000008',
+  panelBg: '#000510',
+  divider: '#1a3a5a',
+  log0:    '#ffffff',
+  log1:    '#aabbcc',
+  log2:    '#778899',
+  stun:    '#ffff44',
+  hp:      '#cc2222',
+  hpOk:   '#44cc44',
+};
+
+// ── Map constants ────────────────────────────────────────────────────────────
+const MAP_W = 54, MAP_H = 22;
+const PANEL_X = MAP_W + 1;
+const O2_MAX = 100;
+const MAX_DEPTH = 10;
+const VIS_RADIUS = 7;
+
+// ── Tile types ───────────────────────────────────────────────────────────────
+function makeTile(walkable, glyph, fg, bg) {
+  return { walkable, transparent: walkable, glyph, fg, bg: bg||COL.bg,
+           explored: false, visible: false };
+}
+const T = {
+  wall:   () => makeTile(false, '#', COL.wall,  COL.bg),
+  floor:  () => makeTile(true,  '.', COL.floor, COL.bg),
+  water:  () => makeTile(true,  '~', COL.water, '#001820'),
+  coral:  () => makeTile(false, '§', COL.coral, COL.bg),
+  stairs: () => ({ walkable:true, transparent:true, glyph:'>',
+                   fg:COL.item, bg:'#001408', explored:false, visible:false }),
+};
+
+// ── Items ────────────────────────────────────────────────────────────────────
+const ITEM_POOL = [
+  { name:'Oxygen Canister', glyph:'!', fg:COL.o2,      kind:'oxygen',    value:35 },
+  { name:'O2 Boost',        glyph:'!', fg:COL.water,   kind:'oxygen',    value:60 },
+  { name:'Harpoon Gun',     glyph:'/', fg:COL.item,    kind:'weapon',    value:12 },
+  { name:'Depth Charge',    glyph:'*', fg:COL.danger,  kind:'explosive', value:10 },
+  { name:'Sonar Ping',      glyph:'^', fg:COL.ui,      kind:'sonar',     value:0  },
+  { name:'Medkit',          glyph:'+', fg:COL.item,    kind:'medkit',    value:15 },
+  { name:'Treasure Chest',  glyph:'$', fg:COL.treasure,kind:'treasure',  value:100},
+  { name:'Rare Artifact',   glyph:'$', fg:'#ffaa00',   kind:'treasure',  value:250},
+  { name:'Ancient Relic',   glyph:'$', fg:'#ff8800',   kind:'treasure',  value:500},
+];
+
+function cloneItem(i) { return Object.assign({}, ITEM_POOL[i]); }
+
+// ── Enemy templates ──────────────────────────────────────────────────────────
+function mkEnemy(name, glyph, fg, hp, atk, def, spd, boss=false) {
+  return { name, glyph, fg, hp, maxHp:hp, atk, def, spd,
+           x:0, y:0, stunned:0, slowed:0, alive:true, boss };
+}
+const ETEMPLATES = {
+  jellyfish: () => mkEnemy('Jellyfish',      'j', '#88ffff', 5,  2, 0, 2),
+  shark:     () => mkEnemy('Shark',          's', '#ff6644', 14, 7, 1, 3),
+  anglerfish:() => mkEnemy('Anglerfish',     'a', '#ffaa44', 10, 6, 2, 1),
+  eel:       () => mkEnemy('Electric Eel',   'e', '#ffffaa', 8,  4, 1, 2),
+  kraken:    () => mkEnemy('Kraken Tentacle','k', '#cc44ff', 12, 5, 3, 2),
+  squid:     () => mkEnemy('Giant Squid',    'G', '#ff44ff', 50,12, 6, 2, true),
+};
+const DEPTH_POOLS = {
+  1:['jellyfish','jellyfish','shark'],
+  2:['jellyfish','shark','eel'],
+  3:['shark','eel','anglerfish'],
+  4:['shark','anglerfish','kraken'],
+  5:['anglerfish','kraken','shark'],
+};
+
+// ── RNG helpers ──────────────────────────────────────────────────────────────
+const rng = (a,b) => Math.floor(Math.random()*(b-a+1))+a;
+const pick = arr => arr[rng(0,arr.length-1)];
+const weightedPick = (arr, ws) => {
+  const total = ws.reduce((s,w)=>s+w,0);
+  let r = Math.random()*total;
+  for(let i=0;i<arr.length;i++){ r-=ws[i]; if(r<=0) return arr[i]; }
+  return arr[arr.length-1];
+};
+
+// ── Map generation ───────────────────────────────────────────────────────────
+function newMap() {
+  return Array.from({length:MAP_H}, ()=>Array.from({length:MAP_W}, ()=>T.wall()));
+}
+
+function carveRoom(map, x1,y1,x2,y2) {
+  for(let y=y1;y<=y2;y++) for(let x=x1;x<=x2;x++) {
+    if(x<=0||x>=MAP_W-1||y<=0||y>=MAP_H-1) continue;
+    const r = Math.random();
+    if(r < 0.04) map[y][x] = T.water();
+    else map[y][x] = T.floor();
+  }
+  // scatter coral
+  const n = Math.floor((x2-x1)*(y2-y1)/10);
+  for(let i=0;i<n;i++) {
+    const cx=rng(x1,x2), cy=rng(y1,y2);
+    if(cx<=0||cx>=MAP_W-1||cy<=0||cy>=MAP_H-1) continue;
+    if(Math.random()<0.15) map[cy][cx]=T.coral();
+  }
+}
+
+function tunnelH(map,x1,x2,y){
+  for(let x=Math.min(x1,x2);x<=Math.max(x1,x2);x++)
+    if(x>0&&x<MAP_W-1&&y>0&&y<MAP_H-1) map[y][x]=T.floor();
+}
+function tunnelV(map,y1,y2,x){
+  for(let y=Math.min(y1,y2);y<=Math.max(y1,y2);y++)
+    if(y>0&&y<MAP_H-1&&x>0&&x<MAP_W-1) map[y][x]=T.floor();
+}
+
+function generateLevel(depth) {
+  const map = newMap();
+  const rooms = [];
+  const target = rng(6,12);
+  for(let attempt=0;attempt<300&&rooms.length<target;attempt++) {
+    const w=rng(4,9), h=rng(3,6);
+    const x=rng(1,MAP_W-w-2), y=rng(1,MAP_H-h-2);
+    const nr=[x,y,x+w,y+h];
+    let ok=true;
+    for(const r of rooms) {
+      if(x<=r[2]+1&&x+w>=r[0]-1&&y<=r[3]+1&&y+h>=r[1]-1){ok=false;break;}
+    }
+    if(ok){ carveRoom(map,x,y,x+w,y+h); rooms.push(nr); }
+  }
+  for(let i=1;i<rooms.length;i++){
+    const [ax1,,ax2,ay1,,ay2]=[rooms[i-1][0],rooms[i-1][1],rooms[i-1][2],rooms[i-1][3]];
+    const [bx1,,bx2,by1,,by2]=[rooms[i][0],rooms[i][1],rooms[i][2],rooms[i][3]];
+    const pcx=Math.floor((rooms[i-1][0]+rooms[i-1][2])/2);
+    const pcy=Math.floor((rooms[i-1][1]+rooms[i-1][3])/2);
+    const ccx=Math.floor((rooms[i][0]+rooms[i][2])/2);
+    const ccy=Math.floor((rooms[i][1]+rooms[i][3])/2);
+    if(Math.random()<0.5){ tunnelH(map,pcx,ccx,pcy); tunnelV(map,pcy,ccy,ccx); }
+    else { tunnelV(map,pcy,ccy,pcx); tunnelH(map,pcx,ccx,ccy); }
+  }
+  const centers = rooms.map(r=>[Math.floor((r[0]+r[2])/2), Math.floor((r[1]+r[3])/2)]);
+  const start = centers[0];
+  const stairsPos = centers[centers.length-1];
+  map[stairsPos[1]][stairsPos[0]] = T.stairs();
+  return { map, centers, start, stairsPos };
+}
+
+function walkableCells(map) {
+  const cells=[];
+  for(let y=0;y<MAP_H;y++) for(let x=0;x<MAP_W;x++)
+    if(map[y][x].walkable && map[y][x].glyph!=='>') cells.push([x,y]);
+  return cells;
+}
+
+// ── FOV (shadowcasting simplified) ──────────────────────────────────────────
+function computeFov(map, px, py, radius) {
+  for(const row of map) for(const t of row) t.visible=false;
+  map[py][px].visible=true; map[py][px].explored=true;
+  const steps=360;
+  for(let i=0;i<steps;i++) {
+    const a = i*(Math.PI*2/steps);
+    const dx=Math.cos(a), dy=Math.sin(a);
+    let rx=px+0.5, ry=py+0.5;
+    for(let r=0;r<radius;r++) {
+      rx+=dx; ry+=dy;
+      const ix=Math.floor(rx), iy=Math.floor(ry);
+      if(ix<0||ix>=MAP_W||iy<0||iy>=MAP_H) break;
+      const t=map[iy][ix];
+      t.visible=true; t.explored=true;
+      if(!t.transparent) break;
+    }
+  }
+}
+
+// ── BFS pathfinding ──────────────────────────────────────────────────────────
+function bfs(map, sx,sy, tx,ty, blocked) {
+  const key=(x,y)=>y*MAP_W+x;
+  const visited=new Set([key(sx,sy)]);
+  const queue=[[sx,sy,[]]];
+  while(queue.length) {
+    const [cx,cy,path]=queue.shift();
+    for(const [dx,dy] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      const nx=cx+dx, ny=cy+dy;
+      const k=key(nx,ny);
+      if(visited.has(k)) continue;
+      if(nx<0||nx>=MAP_W||ny<0||ny>=MAP_H) continue;
+      if(!map[ny][nx].walkable) continue;
+      if(blocked.has(k)&&!(nx===tx&&ny===ty)) continue;
+      visited.add(k);
+      const np=[...path,[nx,ny]];
+      if(nx===tx&&ny===ty) return np;
+      if(visited.size>400) return null;
+      queue.push([nx,ny,np]);
+    }
+  }
+  return null;
+}
+
+// ── Game state ───────────────────────────────────────────────────────────────
+let G = null; // game object
+
+function newGame() {
+  G = {
+    player: {
+      x:0, y:0, hp:30, maxHp:30, oxygen:100, atk:5, def:2,
+      depth:1, score:0, kills:0, inventory:[], stun:0, turn:0,
+    },
+    map: null, enemies: [], items: new Map(), stairsPos:[0,0],
+    log: [], phase: 'play', // 'play','inventory','dead','win','title','help'
+    invOpen: false,
+  };
+  loadLevel();
+}
+
+function loadLevel() {
+  const { map, centers, start, stairsPos } = generateLevel(G.player.depth);
+  G.map = map;
+  G.stairsPos = stairsPos;
+  G.player.x = start[0];
+  G.player.y = start[1];
+  G.enemies = spawnEnemies(centers, start);
+  G.items = spawnItems(map, centers);
+  addLog(`You descend to depth ${G.player.depth}…`);
+}
+
+function spawnEnemies(centers, start) {
+  const pool = DEPTH_POOLS[Math.min(G.player.depth, 5)];
+  const count = 3 + G.player.depth * 2;
+  const enemies = [];
+  const candidates = centers.filter(c=>!(c[0]===start[0]&&c[1]===start[1]));
+  for(let i=0;i<count;i++) {
+    const kind = pick(pool);
+    const e = ETEMPLATES[kind]();
+    if(candidates.length) {
+      const [cx,cy] = pick(candidates);
+      e.x = Math.max(1,Math.min(MAP_W-2, cx+rng(-2,2)));
+      e.y = Math.max(1,Math.min(MAP_H-2, cy+rng(-1,1)));
+    }
+    enemies.push(e);
+  }
+  if(G.player.depth===5||G.player.depth===10) {
+    const boss = ETEMPLATES.squid();
+    const mid = centers[Math.floor(centers.length/2)];
+    if(mid){ boss.x=mid[0]; boss.y=mid[1]; }
+    enemies.push(boss);
+  }
+  return enemies;
+}
+
+function spawnItems(map, centers) {
+  const items = new Map();
+  const cells = walkableCells(map);
+  shuffle(cells);
+  const count = 4 + G.player.depth;
+  let placed=0;
+  for(const [x,y] of cells) {
+    if(placed>=count) break;
+    const k=`${x},${y}`;
+    if(items.has(k)) continue;
+    const idx = weightedPick(
+      [0,1,2,3,4,5,6,7,8],
+      [3,2,2,1,1,2,
+       G.player.depth>=3?2:0,
+       G.player.depth>=5?2:0,
+       G.player.depth>=7?2:0]
+      .map(w=>w||0.01)
+    );
+    items.set(k, cloneItem(Math.min(idx, ITEM_POOL.length-1)));
+    placed++;
+  }
+  return items;
+}
+
+function shuffle(arr) {
+  for(let i=arr.length-1;i>0;i--){
+    const j=rng(0,i);[arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function addLog(msg) {
+  G.log.unshift(msg);
+  if(G.log.length>6) G.log.pop();
+}
+
+// ── Combat ───────────────────────────────────────────────────────────────────
+function playerAttack(enemy) {
+  const dmg = Math.max(0, G.player.atk - enemy.def + rng(-1,2));
+  enemy.hp -= dmg;
+  if(enemy.hp<=0) {
+    enemy.alive=false;
+    const pts=(enemy.boss?50:10)*G.player.depth;
+    G.player.score+=pts;
+    G.player.kills++;
+    addLog(`You slay the ${enemy.name}! (+${pts}pts)`);
+  } else {
+    addLog(`Hit ${enemy.name} for ${dmg}. (${enemy.hp}/${enemy.maxHp}HP)`);
+  }
+}
+
+function enemyAttack(enemy) {
+  const dmg = Math.max(0, enemy.atk - G.player.def + rng(-1,2));
+  G.player.hp -= dmg;
+  let msg = `${enemy.name} hits you for ${dmg}!`;
+  if(enemy.glyph==='j' && Math.random()<0.25) {
+    G.player.stun=2; msg+=' Stunned!';
+  }
+  if(enemy.glyph==='e') {
+    const z=rng(3,8); G.player.oxygen=Math.max(0,G.player.oxygen-z);
+    msg+=` Zapped! (-${z}O2)`;
+  }
+  if(enemy.glyph==='k') { msg+=' Slowed!'; }
+  addLog(msg);
+}
+
+function useItem(item) {
+  const p=G.player;
+  switch(item.kind) {
+    case 'oxygen': {
+      const g=Math.min(item.value, O2_MAX-p.oxygen);
+      p.oxygen=Math.min(O2_MAX,p.oxygen+item.value);
+      addLog(`Breathe in ${item.name}. (+${g|0}O2)`); break;
+    }
+    case 'medkit': {
+      const g=Math.min(item.value,p.maxHp-p.hp);
+      p.hp=Math.min(p.maxHp,p.hp+item.value);
+      addLog(`Used ${item.name}. (+${g}HP)`); break;
+    }
+    case 'weapon': {
+      const vis=G.enemies.filter(e=>e.alive&&G.map[e.y][e.x].visible);
+      if(!vis.length){addLog('No target in sight.');break;}
+      const t=vis.reduce((a,b)=>
+        Math.abs(a.x-p.x)+Math.abs(a.y-p.y)<=Math.abs(b.x-p.x)+Math.abs(b.y-p.y)?a:b);
+      const d=item.value+p.atk; t.hp-=d;
+      if(t.hp<=0){t.alive=false;p.score+=10*p.depth;p.kills++;
+        addLog(`Harpoon slays ${t.name}! (${d}dmg)`);
+      } else { addLog(`Harpoon hits ${t.name} for ${d}.`); }
+      break;
+    }
+    case 'explosive': {
+      let k=0;
+      for(const e of G.enemies) {
+        if(!e.alive) continue;
+        if(Math.abs(e.x-p.x)+Math.abs(e.y-p.y)<=4){
+          e.hp-=item.value; if(e.hp<=0){e.alive=false;p.score+=10*p.depth;p.kills++;k++;}
+        }
+      }
+      p.hp-=3;
+      addLog(`BOOM! Depth charge hits ${k} creatures. (-3HP self)`); break;
+    }
+    case 'sonar': {
+      for(const row of G.map) for(const t of row) t.explored=true;
+      addLog('Sonar ping! Level revealed.'); break;
+    }
+    case 'treasure': {
+      p.score+=item.value;
+      addLog(`Collect ${item.name}! (+${item.value}pts)`); break;
+    }
+  }
+}
+
+// ── Enemy AI ─────────────────────────────────────────────────────────────────
+function enemyTick() {
+  const p=G.player;
+  const aliveEnemies = G.enemies.filter(e=>e.alive);
+  const blocked = new Set(aliveEnemies.map(e=>e.y*MAP_W+e.x));
+
+  for(const e of aliveEnemies) {
+    if(!e.alive) continue;
+    if(e.stunned>0){e.stunned--;continue;}
+    if(e.slowed>0){e.slowed--; if(Math.random()<0.5) continue;}
+    const dist=Math.abs(e.x-p.x)+Math.abs(e.y-p.y);
+    if(!G.map[e.y][e.x].visible && dist>10) continue;
+
+    const steps = e.spd;
+    for(let s=0;s<steps;s++) {
+      const d2=Math.abs(e.x-p.x)+Math.abs(e.y-p.y);
+      if(d2<=1) break;
+      blocked.delete(e.y*MAP_W+e.x);
+      const path=bfs(G.map,e.x,e.y,p.x,p.y,blocked);
+      if(path&&path.length>=1){
+        const [nx,ny]=path[0];
+        blocked.add(ny*MAP_W+nx);
+        e.x=nx; e.y=ny;
+      }
+    }
+    if(Math.abs(e.x-p.x)+Math.abs(e.y-p.y)===1) enemyAttack(e);
+    // Electric eel AOE
+    if(e.glyph==='e' && Math.abs(e.x-p.x)<=2 && Math.abs(e.y-p.y)<=2 && Math.random()<0.15) {
+      const z=rng(1,3); p.oxygen=Math.max(0,p.oxygen-z);
+      addLog(`Eel field zaps! (-${z}O2)`);
+    }
+  }
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+function tryMove(dx,dy) {
+  const p=G.player;
+  if(p.stun>0){p.stun--;addLog('Stunned!');endTurn();return;}
+  const nx=p.x+dx, ny=p.y+dy;
+  if(nx<0||nx>=MAP_W||ny<0||ny>=MAP_H) return;
+
+  const enemy=G.enemies.find(e=>e.alive&&e.x===nx&&e.y===ny);
+  if(enemy){ playerAttack(enemy); endTurn(); return; }
+
+  if(G.map[ny][nx].walkable) {
+    p.x=nx; p.y=ny;
+    // Stairs?
+    if(G.map[ny][nx].glyph==='>') {
+      if(p.depth>=MAX_DEPTH){ G.phase='win'; return; }
+      p.depth++;
+      loadLevel();
+    }
+    endTurn();
+  }
+}
+
+function tryPickup() {
+  const k=`${G.player.x},${G.player.y}`;
+  if(G.items.has(k)){
+    const it=G.items.get(k);
+    G.items.delete(k);
+    if(it.kind==='treasure'){
+      G.player.score+=it.value;
+      addLog(`Grabbed ${it.name}! (+${it.value}pts)`);
+    } else {
+      G.player.inventory.push(it);
+      addLog(`Picked up ${it.name}.`);
+    }
+    endTurn();
+  } else { addLog('Nothing here.'); }
+}
+
+function endTurn() {
+  const p=G.player;
+  const drain = 1*(1+p.depth*0.15);
+  p.oxygen=Math.max(0,p.oxygen-drain);
+  enemyTick();
+  p.turn++;
+  if(p.hp<=0||p.oxygen<=0) G.phase='dead';
+  if(G.phase==='win') return;
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────────────
+function drawChar(x, y, ch, fg, bg) {
+  ctx.fillStyle = bg||COL.bg;
+  ctx.fillRect(x*CW, y*CH, CW, CH);
+  ctx.fillStyle = fg;
+  ctx.fillText(ch, x*CW, (y+1)*CH-2);
+}
+
+function drawMap() {
+  const p=G.player;
+  const enemyAt={};
+  for(const e of G.enemies) if(e.alive) enemyAt[`${e.x},${e.y}`]=e;
+
+  for(let y=0;y<MAP_H;y++) for(let x=0;x<MAP_W;x++) {
+    const t=G.map[y][x];
+    if(!t.explored){ ctx.fillStyle=COL.bg; ctx.fillRect(x*CW,y*CH,CW,CH); continue; }
+
+    if(t.visible) {
+      if(x===p.x&&y===p.y){ drawChar(x,y,'@',COL.player,t.bg); continue; }
+      const ek=`${x},${y}`;
+      if(enemyAt[ek]){
+        const e=enemyAt[ek];
+        drawChar(x,y,e.glyph,e.boss?COL.boss:COL.enemy,t.bg); continue;
+      }
+      const ik=`${x},${y}`;
+      if(G.items.has(ik)){
+        const it=G.items.get(ik);
+        drawChar(x,y,it.glyph,it.fg,t.bg); continue;
+      }
+      drawChar(x,y,t.glyph,t.fg,t.bg);
+    } else {
+      // explored but dim
+      const fg2 = t.walkable ? COL.dark : COL.wallDim;
+      drawChar(x,y,t.glyph,fg2,COL.bg);
+    }
+  }
+}
+
+function bar(x,y,label,val,max,fg,bg,w=14) {
+  const filled=Math.round((val/max)*w);
+  drawStr(x,y,label,COL.ui);
+  drawStr(x+3,y,'[',COL.ui);
+  for(let i=0;i<w;i++)
+    drawChar(x+4+i,y,i<filled?'█':' ',fg,i<filled?bg:'#111');
+  drawStr(x+4+w,y,']',COL.ui);
+}
+
+function drawStr(x,y,str,fg,bg) {
+  for(let i=0;i<str.length;i++) drawChar(x+i,y,str[i],fg,bg);
+}
+
+function drawPanel() {
+  const p=G.player;
+  const px=PANEL_X;
+
+  // Background
+  ctx.fillStyle=COL.panelBg;
+  ctx.fillRect(px*CW,0,(COLS-px)*CW,ROWS*CH);
+
+  // Divider
+  for(let y=0;y<MAP_H;y++) drawChar(MAP_W,y,'│',COL.divider,COL.bg);
+
+  let row=0;
+  drawStr(px,row,'ABYSS DIVER',COL.o2); row++;
+  drawStr(px,row,`Depth ${p.depth}/${MAX_DEPTH}`,COL.ui); row++;
+  drawStr(px,row,`Score ${p.score}`,COL.treasure); row++;
+  drawStr(px,row,`Kills ${p.kills}`,COL.enemy); row++;
+  drawStr(px,row,'────────────────',COL.divider); row++;
+
+  // HP bar
+  const hpFrac=p.hp/p.maxHp;
+  bar(px,row,'HP ',p.hp,p.maxHp, hpFrac<0.3?COL.danger:COL.hpOk, hpFrac<0.3?'#440000':'#004400');
+  row++;
+  drawStr(px+3,row,`${p.hp}/${p.maxHp}    `,hpFrac<0.3?COL.danger:COL.hpOk); row++;
+
+  // O2 bar
+  const o2Frac=p.oxygen/O2_MAX;
+  bar(px,row,'O2 ',p.oxygen,O2_MAX, o2Frac<0.25?COL.danger:COL.o2, o2Frac<0.25?'#440000':'#002244');
+  row++;
+  drawStr(px+3,row,`${Math.floor(p.oxygen)}/${O2_MAX}  `,o2Frac<0.25?COL.danger:COL.o2); row++;
+
+  drawStr(px,row,'────────────────',COL.divider); row++;
+  drawStr(px,row,`Items: ${p.inventory.length}`,COL.item); row++;
+  drawStr(px,row,'────────────────',COL.divider); row++;
+
+  // Log
+  drawStr(px,row,'Log:',COL.ui); row++;
+  const logColors=[COL.log0,COL.log1,COL.log2,'#445566','#334455','#223344'];
+  for(let i=0;i<Math.min(G.log.length,6);i++){
+    const msg=G.log[i].substring(0,COLS-px);
+    drawStr(px,row,msg.padEnd(COLS-px),logColors[i]||'#223344');
+    row++;
+  }
+  // fill rest
+  while(row<ROWS) { drawStr(px,row,' '.repeat(COLS-px),COL.bg); row++; }
+}
+
+function drawStatusBar() {
+  // Bottom bar
+  const controls='[Arrows/WASD] Move  [G] Grab  [I] Inventory  [.] Wait  [?] Help  [Q] Quit';
+  for(let x=0;x<MAP_W;x++) drawChar(x,MAP_H,' ',COL.bg,COL.bg);
+  drawStr(0,MAP_H,controls.substring(0,MAP_W),COL.dark);
+}
+
+function render() {
+  ctx.fillStyle=COL.bg;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  if(G&&(G.phase==='play'||G.phase==='inventory')) {
+    drawMap();
+    drawPanel();
+    drawStatusBar();
+  }
+}
+
+// ── Overlay screens ──────────────────────────────────────────────────────────
+const screen = document.getElementById('screen');
+const screenContent = document.getElementById('screen-content');
+const invOverlay = document.getElementById('inv-overlay');
+
+function showScreen(html) {
+  screenContent.innerHTML=html;
+  screen.classList.add('active');
+}
+function hideScreen() { screen.classList.remove('active'); }
+
+function showTitle() {
+  showScreen(`
+    <h1>🌊 ABYSS DIVER</h1>
+    <div style="color:#0cf;font-size:1.1em">A Deep Ocean Roguelike</div>
+    <br>
+    <div style="color:#acd">Descend <span class="gold">10 floors</span> to claim the Abyssal Vault.</div>
+    <div style="color:#78a">Manage your oxygen. Fear the dark.</div>
+    <br>
+    <table>
+      <tr><td>Arrow keys / WASD</td><td>Move</td></tr>
+      <tr><td>G</td><td>Pick up item</td></tr>
+      <tr><td>I</td><td>Inventory</td></tr>
+      <tr><td>. (period)</td><td>Wait one turn</td></tr>
+      <tr><td>?</td><td>Help</td></tr>
+      <tr><td>Q</td><td>Quit / Restart</td></tr>
+    </table>
+    <br>
+    <div style="color:#889;font-size:12px">Enemies: j=Jellyfish  s=Shark  a=Anglerfish  e=Eel  k=Kraken  G=Giant Squid</div>
+    <div class="prompt">[ Click or press any key to dive in ]</div>
+  `);
+}
+
+function showHelp() {
+  showScreen(`
+    <h1>HELP</h1>
+    <table>
+      <tr><td>Arrow / WASD / HJKL</td><td>Move one step</td></tr>
+      <tr><td>G</td><td>Pick up item at feet</td></tr>
+      <tr><td>I</td><td>Open inventory (click item to use)</td></tr>
+      <tr><td>. (period)</td><td>Wait a turn</td></tr>
+      <tr><td>Q</td><td>Quit</td></tr>
+      <tr><td>></td><td>Stairs — walk over to descend</td></tr>
+    </table>
+    <br>
+    <div style="color:#0cf">Enemies</div>
+    <table>
+      <tr><td style="color:#88ffff">j Jellyfish</td><td>Stuns occasionally</td></tr>
+      <tr><td style="color:#ff6644">s Shark</td><td>Fast and strong</td></tr>
+      <tr><td style="color:#ffaa44">a Anglerfish</td><td>Slow but hits hard</td></tr>
+      <tr><td style="color:#ffffaa">e Electric Eel</td><td>Drains your oxygen</td></tr>
+      <tr><td style="color:#cc44ff">k Kraken Tentacle</td><td>Slows movement</td></tr>
+      <tr><td style="color:#ff44ff">G Giant Squid</td><td>Floor boss!</td></tr>
+    </table>
+    <br>
+    <div style="color:#888">O2 drains every turn — faster at greater depth.<br>Reach depth 10 to win.</div>
+    <div class="prompt">[ Click or press any key to return ]</div>
+  `);
+}
+
+function showDead() {
+  const p=G.player;
+  const reason = p.oxygen<=0 ? 'You suffocated in the crushing dark.' : 'You were consumed by the abyss.';
+  showScreen(`
+    <h2>YOU PERISHED</h2>
+    <div style="color:#f88;margin:8px 0">${reason}</div>
+    <br>
+    <table>
+      <tr><td>Final Score</td><td class="gold">${p.score}</td></tr>
+      <tr><td>Depth Reached</td><td>${p.depth} / ${MAX_DEPTH}</td></tr>
+      <tr><td>Enemies Slain</td><td>${p.kills}</td></tr>
+      <tr><td>Turns Survived</td><td>${p.turn}</td></tr>
+    </table>
+    <br>
+    <div class="prompt">[ Click or press any key to try again ]</div>
+  `);
+}
+
+function showWin() {
+  const p=G.player;
+  showScreen(`
+    <h1 style="color:#fd0">★ VICTORY ★</h1>
+    <div style="color:#0f8;font-size:1.1em">You reached the Abyssal Vault!</div>
+    <br>
+    <table>
+      <tr><td>Final Score</td><td class="gold">${p.score}</td></tr>
+      <tr><td>Enemies Slain</td><td>${p.kills}</td></tr>
+      <tr><td>Turns</td><td>${p.turn}</td></tr>
+    </table>
+    <br>
+    <div class="prompt">[ Click or press any key to play again ]</div>
+  `);
+}
+
+// ── Inventory overlay ────────────────────────────────────────────────────────
+function openInventory() {
+  const list=document.getElementById('inv-list');
+  list.innerHTML='';
+  if(!G.player.inventory.length) {
+    list.innerHTML='<div class="inv-empty">(empty)</div>';
+  } else {
+    G.player.inventory.forEach((it,i)=>{
+      const div=document.createElement('div');
+      div.className='inv-item';
+      div.innerHTML=`<span class="glyph">${it.glyph}</span><span class="iname">${it.name}</span><span class="itype">${it.kind}</span>`;
+      div.onclick=()=>{
+        G.player.inventory.splice(i,1);
+        useItem(it);
+        endTurn();
+        closeInventory();
+      };
+      list.appendChild(div);
+    });
+  }
+  invOverlay.classList.add('active');
+  G.phase='inventory';
+}
+
+function closeInventory() {
+  invOverlay.classList.remove('active');
+  G.phase='play';
+}
+
+// ── Input ────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e=>{
+  // Screen overlay takes priority
+  if(screen.classList.contains('active')) {
+    if(G.phase==='dead'||G.phase==='win'||G.phase==='title') {
+      hideScreen(); newGame();
+    } else if(G.phase==='help') {
+      hideScreen(); G.phase='play';
+    }
+    return;
+  }
+  if(G.phase==='inventory') {
+    if(e.key==='Escape'||e.key.toLowerCase()==='i') closeInventory();
+    return;
+  }
+  if(G.phase!=='play') return;
+
+  const k=e.key.toLowerCase();
+  e.preventDefault();
+
+  const moves={
+    'arrowup':[0,-1],'arrowdown':[0,1],'arrowleft':[-1,0],'arrowright':[1,0],
+    'w':[0,-1],'s':[0,1],'a':[-1,0],'d':[1,0],
+    'k':[0,-1],'j':[0,1],'h':[-1,0],'l':[1,0],
+  };
+  if(moves[e.key.toLowerCase()]||moves[e.key]) {
+    const [dx,dy]=moves[e.key.toLowerCase()]||moves[e.key];
+    tryMove(dx,dy);
+  } else if(k==='.'){ endTurn(); }
+  else if(k==='g'){ tryPickup(); }
+  else if(k==='i'){ openInventory(); }
+  else if(k==='?'){ G.phase='help'; showHelp(); }
+  else if(k==='q'){ G.phase='dead'; }
+
+  if(G.phase==='dead') showDead();
+  else if(G.phase==='win') showWin();
+  render();
+});
+
+screen.addEventListener('click', ()=>{
+  if(G.phase==='dead'||G.phase==='win'||G.phase==='title') {
+    hideScreen(); newGame();
+  } else if(G.phase==='help') {
+    hideScreen(); G.phase='play';
+  }
+});
+
+// ── Game loop ─────────────────────────────────────────────────────────────────
+function loop() {
+  if(G&&(G.phase==='play'||G.phase==='inventory')) {
+    computeFov(G.map,G.player.x,G.player.y,VIS_RADIUS);
+    render();
+  }
+  requestAnimationFrame(loop);
+}
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+newGame();
+G.phase='title';
+showTitle();
+loop();
+</script>
+</body>
+</html>
